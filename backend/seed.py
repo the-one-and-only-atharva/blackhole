@@ -62,15 +62,19 @@ for prop in dummy_properties:
     property_ids.append(result.inserted_id)
 
 # Dummy audit logs
+prev_hash = None
 for i, prop_id in enumerate(property_ids):
+    log_hash = "dummyhashvalue" + str(i)
     log = {
         "property_id": str(prop_id),
         "action": "create",
-        "hash": "dummyhashvalue" + str(i),
+        "hash": log_hash,
+        "prev_hash": prev_hash,
         "timestamp": datetime.utcnow(),
         "changes": dummy_properties[i],
         "user": user_ids[i]
     }
     db.audit_logs.insert_one(log)
+    prev_hash = log_hash
 
 print("Dummy data inserted!") 

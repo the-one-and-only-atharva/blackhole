@@ -2,18 +2,29 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
-class User(BaseModel):
-    id: Optional[str]
+class UserBase(BaseModel):
     name: str
     email: str
 
-class Property(BaseModel):
+class UserCreate(UserBase):
+    pass
+
+class User(UserBase):
     id: Optional[str]
-    owner: User
-    buyer_intent: str  # e.g., 'rent' or 'sale'
+
+class PropertyBase(BaseModel):
+    owner: UserBase
+    buyer_intent: str
     location: str
     verification: Optional[str]
     terms: str
+
+class PropertyCreate(PropertyBase):
+    pass
+
+class Property(PropertyBase):
+    id: Optional[str]
+    owner: User
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
@@ -22,6 +33,7 @@ class AuditLog(BaseModel):
     property_id: str
     action: str
     hash: str
+    prev_hash: Optional[str]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     changes: dict
     user: Optional[User] 

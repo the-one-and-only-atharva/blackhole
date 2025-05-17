@@ -9,6 +9,7 @@ import Navbar from "./components/Navbar";
 import LandingPage from "./components/LandingPage";
 import PropertyList from "./components/PropertyList";
 import PropertyForm from "./components/PropertyForm";
+import Dashboard from "./components/Dashboard";
 import PropertyDetails from "./components/PropertyDetails";
 import LoginForm from "./components/LoginForm";
 
@@ -75,7 +76,7 @@ function AppContent() {
   return (
     <div className="app">
       <Navbar user={user} onLogout={handleLogout} />
-      <div style={{ padding: "2rem" }}>
+      <div>
         <Routes>
           <Route
             path="/"
@@ -86,16 +87,15 @@ function AppContent() {
             path="/properties"
             element={
               user ? (
-                <>
-                  <PropertyForm user={user} />
-                  <PropertyList />
-                </>
+                <PropertyList />
               ) : (
                 <div>Please log in to view properties</div>
               )
             }
           />
           <Route path="/properties/:id" element={<PropertyDetails />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/property-form" element={<PropertyForm />} />
         </Routes>
       </div>
     </div>

@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, Query
 from typing import List, Optional
-from models import Property, User, AuditLog
+from models import Property, User, AuditLog, PropertyCreate
 from db import db
 from verification import log_audit, detect_fraud
 from bson import ObjectId
 from fastapi.middleware.cors import CORSMiddleware
 import auth  # Import auth module
+from datetime import datetime
 
 app = FastAPI()
 
@@ -39,13 +40,21 @@ def doc_to_dict(doc):
 # Include auth routes
 app.include_router(auth.router)
 
+def ensure_owner_id(prop):
+    if 'owner' in prop and 'id' not in prop['owner']:
+        prop['owner']['id'] = None
+    return prop
+
 @app.post('/properties', response_model=Property)
-def create_property(property: Property):
+def create_property(property: PropertyCreate):
     prop_dict = property.dict()
-    prop_dict['created_at'] = prop_dict['updated_at'] = property.created_at
+    prop_dict['created_at'] = prop_dict['updated_at'] = datetime.utcnow()
     result = db.properties.insert_one(prop_dict)
     prop_dict['id'] = str(result.inserted_id)
-    log_audit(prop_dict['id'], 'create', prop_dict, prop_dict['owner'].dict())
+    # Ensure owner has an 'id' field for the response model
+    if 'owner' in prop_dict and 'id' not in prop_dict['owner']:
+        prop_dict['owner']['id'] = None
+    log_audit(prop_dict['id'], 'create', prop_dict, prop_dict['owner'])
     return prop_dict
 
 @app.get('/properties', response_model=List[Property])
@@ -59,7 +68,7 @@ def list_properties(
     if location:
         query['location'] = location
     props = list(db.properties.find(query))
-    return [doc_to_dict(p) for p in props]
+    return [ensure_owner_id(doc_to_dict(p)) for p in props]
 
 @app.get('/properties/{property_id}', response_model=Property)
 def get_property(property_id: str):
@@ -67,7 +76,7 @@ def get_property(property_id: str):
         prop = db.properties.find_one({'_id': ObjectId(property_id)})
         if not prop:
             raise HTTPException(status_code=404, detail='Property not found')
-        return doc_to_dict(prop)
+        return ensure_owner_id(doc_to_dict(prop))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -75,7 +84,14 @@ def get_property(property_id: str):
 def get_audit_log(property_id: str):
     try:
         logs = list(db.audit_logs.find({'property_id': property_id}))
-        return [doc_to_dict(log) for log in logs]
+        result = []
+        for log in logs:
+            log_dict = doc_to_dict(log)
+            # Ensure prev_hash is present (for old logs)
+            if 'prev_hash' not in log_dict:
+                log_dict['prev_hash'] = None
+            result.append(log_dict)
+        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -87,7 +103,7 @@ def update_property(property_id: str, property: Property):
         result = db.properties.update_one({'_id': ObjectId(property_id)}, {'$set': prop_dict})
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail='Property not found')
-        log_audit(property_id, 'update', prop_dict, prop_dict['owner'].dict())
+        log_audit(property_id, 'update', prop_dict, prop_dict['owner'])
         return get_property(property_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
